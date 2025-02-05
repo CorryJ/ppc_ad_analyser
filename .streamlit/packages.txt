@@ -1,2 +1,2 @@
-pytesseract-ocr
-pytesseract-ocr-por
+tesseract-ocr
+tesseract-ocr-por
