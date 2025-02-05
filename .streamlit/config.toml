@@ -1,1 +1,8 @@
+[theme]
+base="light"
+primaryColor="#85bd41"
+# secondaryBackgroundColor="#85bd41"
 
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = true
