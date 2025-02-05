@@ -6,7 +6,7 @@ import os
 from openai import OpenAI
 
 # Initialise OpenAI client
-client = OpenAI(api_key=os.environ["openai_api_key"])
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"]) 
 
 # Function to extract data from an image
 def extract_data_from_image(image):
