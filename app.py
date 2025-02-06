@@ -5,7 +5,7 @@ import pandas as pd
 import json
 
 # Initialise OpenAI client
-client = openai.OpenAi(api_key=st.secrets["OPENAI_API_KEY"]) 
+client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Define banned words list
 banned_words = "Everest, Matterhorn, levate, juncture, moreover, landscape, utilise, maze, labyrinth, cusp, hurdles, bustling, harnessing, unveiling the power,\
