@@ -4,7 +4,7 @@ import openai
 import pandas as pd
 import json
 # Setting page title and header
-st.set_page_config(page_title="The SEO Works AI Bot",  
+st.set_page_config(page_title="The SEO Works Google Ad Report analyser",  
                    page_icon="https://www.seoworks.co.uk/wp-content/themes/seoworks/assets/images/fav.png", 
                    layout="centered",initial_sidebar_state="collapsed")
 
