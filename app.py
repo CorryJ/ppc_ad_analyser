@@ -107,6 +107,10 @@ def chatgpt_analysis(table_text):
     Write in UK English at all times. Avoid jargon and unnecessarily complex word choices. Clarity is crucial. 
     Do not use emojis or exclamation marks. 
 
+    Do not add any salutation such as Dear client or Hello.
+
+    Do not add any valediction such as kind regards or best regards.
+
     You MUST NOT include any of the following words in the response:
     {banned_words}
     """
