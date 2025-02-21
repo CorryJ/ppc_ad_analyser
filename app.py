@@ -5,15 +5,23 @@ import pandas as pd
 import json
 import time
 
-
 # Set page config
 st.set_page_config(
     page_title="The SEO Works AI Bot",  
     page_icon="https://www.seoworks.co.uk/wp-content/themes/seoworks/assets/images/fav.png", 
-    layout="centered", 
+    layout="wide", 
     initial_sidebar_state="expanded"
 )
 
+# Secure API Key Retrieval
+try:
+    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+except KeyError:
+    st.error("⚠️ OpenAI API key not found. Please add it to Streamlit secrets.")
+    st.stop()
+
+# Set OpenAI API key securely
+openai.api_key = OPENAI_API_KEY
 
 # Custom CSS for styling
 st.markdown("""
@@ -29,7 +37,7 @@ st.markdown("""
 col1, col2, col3 = st.columns([1,2,1])
 
 with col2:  
-    st.image("resources/SeoWorksLogo-Dark.png", use_container_width=True)
+    st.image("resources/SeoWorksLogo-Dark.png", use_column_width=True)  # Fixed incorrect use_container_width
     st.markdown('<div style="text-align: center; font-size:26px;"><strong>The SEO Works Ad Analyser</strong></div>', unsafe_allow_html=True)
 
 # Sidebar for file upload & quick help
@@ -44,72 +52,19 @@ st.sidebar.markdown("""
 3️⃣ You can **refine the insights** using additional prompts  
 """)
 
-# Secure API Key Retrieval
-try:
-    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-except KeyError:
-    st.error("⚠️ OpenAI API key not found. Please add it to Streamlit secrets.")
-    st.stop()
-
-# Set OpenAI API key securely
-openai.api_key = OPENAI_API_KEY
-
-
 # Function to extract text from PDF
 def extract_pdf_text(uploaded_file):
     with pdfplumber.open(uploaded_file) as pdf:
         return pdf.pages[1].extract_text() if len(pdf.pages) > 1 else None
 
-# Function to send text to ChatGPT API and structure the extracted data
-def chatgpt_extraction(raw_text):
-    prompt = f"""
-    Extract key performance metrics from the following unstructured text. 
-    Present them in a structured JSON format with fields: "Metric", "Value", and "Change (%)".
-    
-    Only include metrics related to PPC performance such as:
-    - Clicks, Conversions, Goal Conversion Rate, Cost, Cost per Conversion, 
-    - Average CPC, Impressions, CTR, All Conversion Value, 
-    - Search Impression Share, ROAS, Average Purchase Revenue
-
-    Ensure the JSON output is a valid array.
-
-    Text:
-    {raw_text}
-
-    Respond only with the JSON output and no additional text.
-    """
-
+# Function to interact with OpenAI API
+def call_openai_api(prompt, model="gpt-4-turbo"):
     response = openai.ChatCompletion.create(
-    model="gpt-4-turbo",
-    messages=[{"role": "system", "content": "You are a Google Ads performance analyst."},
-              {"role": "user", "content": prompt}]
-)
-
-    try:
-        return json.loads(response.choices[0].message.content.strip())
-    except json.JSONDecodeError:
-        return None
-
-# Function to analyze extracted data using GPT-4
-def chatgpt_analysis(table_text):
-    analysis_prompt = f"""
-    You are a Google Ads expert. Here is a table containing key Google Ads performance metrics:
-
-    {table_text}
-
-    Generate a summary report with key trends and insights. Ensure a friendly but professional tone.
-    Write in UK English and avoid jargon, complex word choices, and emojis.
-
-    Do not use any greetings (e.g., Hello) or sign-offs (e.g., Best regards).
-    """
-
-    response = openai.OpenAI(api_key).chat.completions.create(
-        model="gpt-4o",
+        model=model,
         messages=[{"role": "system", "content": "You are a Google Ads performance analyst."},
-                  {"role": "user", "content": analysis_prompt}]
+                  {"role": "user", "content": prompt}]
     )
-
-    return response.choices[0].message.content
+    return response.choices[0].message["content"]
 
 # Main UI
 if uploaded_file:
@@ -124,18 +79,30 @@ if uploaded_file:
 
         # AI data extraction
         st.subheader("🔍 Extracting Performance Metrics...")
-        structured_data = chatgpt_extraction(raw_text)
+        extraction_prompt = f"""
+        Extract key performance metrics from this unstructured text and return a JSON array.
+        Metrics: Clicks, Conversions, Goal Conversion Rate, Cost, Cost per Conversion, 
+        Average CPC, Impressions, CTR, All Conversion Value, ROAS, Search Impression Share.
+
+        Text:
+        {raw_text}
+
+        Respond only with JSON format.
+        """
+        structured_data = call_openai_api(extraction_prompt)
 
         if structured_data:
-            df = pd.DataFrame(structured_data)
+            try:
+                df = pd.DataFrame(json.loads(structured_data))
+            except json.JSONDecodeError:
+                st.error("⚠️ AI returned invalid data. Try another PDF.")
+                st.stop()
 
             st.subheader("📊 Extracted Performance Metrics")
-            st.table(df.style.set_properties(**{'text-align': 'left'}))  # Improved table display
+            st.table(df.style.set_properties(**{'text-align': 'left'}))  
 
             csv = df.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Download Extracted Data as CSV", csv, "extracted_data.csv", "text/csv")
-
-            table_text = df.to_string(index=False)
 
             # AI Analysis with Loading Progress
             st.subheader("📈 AI Analysis & Recommendations")
@@ -145,23 +112,26 @@ if uploaded_file:
                     time.sleep(0.02)
                     progress_bar.progress(percent + 1)
 
-                analysis_result = chatgpt_analysis(table_text)
+                table_text = df.to_string(index=False)
+                analysis_prompt = f"""
+                Analyze the following PPC performance data and provide insights.
+                Identify trends and explain performance changes in a clear, professional tone.
+
+                {table_text}
+
+                Avoid jargon and unnecessary complexity. Use UK English. No greetings or sign-offs.
+                """
+                analysis_result = call_openai_api(analysis_prompt, model="gpt-4o")
                 st.write(analysis_result)
 
-            # Refinement section with styled container
+            # Refinement section
             st.markdown("""
                 <div style="background-color: #f9f9f9; padding: 15px; border-radius: 10px;">
                     <h4>Refine AI Analysis</h4>
                 </div>
             """, unsafe_allow_html=True)
 
-            user_prompt = st.text_area("Enter additional instructions or requests for AI:", key="user_input")
-
-            st.markdown("""
-                <style>
-                    div.stButton > button { background-color: #004085; color: white; font-size: 16px; border-radius: 5px; padding: 10px; }
-                </style>
-            """, unsafe_allow_html=True)
+            user_prompt = st.text_area("Enter additional instructions for AI:", key="user_input")
 
             if st.button("Improve Analysis"):
                 if user_prompt.strip():
@@ -176,19 +146,17 @@ if uploaded_file:
 
                         Provide an improved analysis based on this feedback.
                         """
-
-                        refined_response = chatgpt_analysis(refine_prompt)
+                        refined_response = call_openai_api(refine_prompt, model="gpt-4o")
                         st.subheader("🔄 Updated AI Analysis")
                         st.write(refined_response)
 
                         st.subheader("✏️ Further Refinements")
                         user_prompt = st.text_area("Enter additional refinements:", key="further_input")
                 else:
-                    st.warning("⚠️ Please enter some instructions before submitting.")
+                    st.warning("⚠️ Please enter instructions before submitting.")
 
         else:
             st.error("⚠️ AI extraction failed. Please try a different PDF.")
 
     else:
         st.error("⚠️ No text found on page 2. Try uploading a different PDF.")
-
