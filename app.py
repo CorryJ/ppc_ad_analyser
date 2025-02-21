@@ -7,7 +7,7 @@ import time
 
 # Set page config
 st.set_page_config(
-    page_title="The SEO Works Paid Search Reporting AI",  
+    page_title="The SEO Works AI Bot",  
     page_icon="https://www.seoworks.co.uk/wp-content/themes/seoworks/assets/images/fav.png", 
     layout="wide", 
     initial_sidebar_state="expanded"
@@ -20,8 +20,8 @@ except KeyError:
     st.error("⚠️ OpenAI API key not found. Please add it to Streamlit secrets.")
     st.stop()
 
-# Set OpenAI API key securely
-openai.api_key = OPENAI_API_KEY
+# Initialize OpenAI client (New API Method)
+client = openai.Client(api_key=OPENAI_API_KEY)
 
 # Custom CSS for styling
 st.markdown("""
@@ -37,7 +37,7 @@ st.markdown("""
 col1, col2, col3 = st.columns([1,2,1])
 
 with col2:  
-    st.image("resources/SeoWorksLogo-Dark.png", use_container_width=True)  # Fixed incorrect use_container_width
+    st.image("resources/SeoWorksLogo-Dark.png", use_column_width=True)
     st.markdown('<div style="text-align: center; font-size:26px;"><strong>The SEO Works Ad Analyser</strong></div>', unsafe_allow_html=True)
 
 # Sidebar for file upload & quick help
@@ -57,14 +57,14 @@ def extract_pdf_text(uploaded_file):
     with pdfplumber.open(uploaded_file) as pdf:
         return pdf.pages[1].extract_text() if len(pdf.pages) > 1 else None
 
-# Function to interact with OpenAI API
+# Function to interact with OpenAI API (Updated for v1.0.0+)
 def call_openai_api(prompt, model="gpt-4-turbo"):
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model=model,
         messages=[{"role": "system", "content": "You are a Google Ads performance analyst."},
                   {"role": "user", "content": prompt}]
     )
-    return response.choices[0].message["content"]
+    return response.choices[0].message.content
 
 # Main UI
 if uploaded_file:
