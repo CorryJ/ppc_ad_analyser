@@ -3,192 +3,138 @@ import pdfplumber
 import openai
 import pandas as pd
 import json
-# Setting page title and header
-st.set_page_config(page_title="The SEO Works Google Ad Report analyser",  
-                   page_icon="https://www.seoworks.co.uk/wp-content/themes/seoworks/assets/images/fav.png", 
-                   layout="centered",initial_sidebar_state="collapsed")
+import time
 
-# Remove whitespace from the top of the page and sidebar
-st.markdown("""
-        <style>
-               .block-container {
-                    padding-top: 0rem;
-                    padding-bottom: 0rem;
-                    padding-left: 5rem;
-                    padding-right: 5rem;
-                }
-        </style>
-        """, unsafe_allow_html=True)
+# Set page config
+st.set_page_config(
+    page_title="The SEO Works AI Bot",  
+    page_icon="https://www.seoworks.co.uk/wp-content/themes/seoworks/assets/images/fav.png", 
+    layout="centered", 
+    initial_sidebar_state="expanded"
+)
 
-col1, col2, col3 = st.columns(3)
+# Secure API Key Retrieval
+try:
+    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]  # Retrieve key securely
+except KeyError:
+    st.error("⚠️ OpenAI API key not found. Please add it to Streamlit secrets.")
+    st.stop()
 
-with col1:
-    st.header("")
-   
-with col2:
-    st.header("")
-    st.image("resources/SeoWorksLogo-Dark.png")
+# Initialize OpenAI client
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-with col3:
-    st.header("")
-
-
-st.markdown('<div style="text-align: center; font-size:24px;"><strong>The SEO Works Ad analyser<strong></div>', unsafe_allow_html=True)
-
-# Initialise OpenAI client
-client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-# Define banned words list
-banned_words = "Everest, Matterhorn, levate, juncture, moreover, landscape, utilise, maze, labyrinth, cusp, hurdles, bustling, harnessing, unveiling the power,\
-       realm, depicted, demystify, insurmountable, new era, poised, unravel, entanglement, unprecedented, eerie connection, unliving, \
-       beacon, unleash, delve, enrich, multifaceted, elevate, discover, supercharge, unlock, unleash, tailored, elegant, delve, dive, \
-       ever-evolving, pride, realm,  meticulously, grappling, superior, weighing,  merely, picture, architect, adventure, journey, embark , \
-       navigate, navigation, navigating, enchanting, world, dazzle, tapestry, in this blog, in this article, dive-in, in today's, right place, \
-        let's get started, imagine this, picture this, consider this, just explore"
-
-# Function to extract text from page 2 of the PDF
-def extract_pdf_text(uploaded_file):
-    with pdfplumber.open(uploaded_file) as pdf:
-        if len(pdf.pages) > 1:  
-            return pdf.pages[1].extract_text()
-        else:
-            return None
-
-# Function to send text to ChatGPT API and structure the extracted data
-def chatgpt_extraction(raw_text):
-    prompt = f"""
-    Extract key performance metrics from the following unstructured text. 
-    Present them in a structured JSON format with fields: "Metric", "Value", and "Change (%)".
-    
-    Only include metrics related to PPC performance such as:
-    - Clicks
-    - Conversions
-    - Goal Conversion Rate
-    - Cost
-    - Cost per Conversion
-    - Average CPC
-    - Impressions
-    - CTR
-    - All Conversion Value
-    - Search Impression Share
-    - Return on Ad Spend (ROAS)
-    - Average Purchase Revenue
-
-    Ensure the JSON output is a valid array.
-
-    Text:
-    {raw_text}
-
-    Respond only with the JSON output and no additional text.
-    """
-
+# Function to interact with OpenAI API
+def call_openai_api(prompt):
     response = client.chat.completions.create(
         model="gpt-4-turbo",
-        messages=[{"role": "system", "content": "You are a data extraction assistant."},
+        messages=[{"role": "system", "content": "You are a Google Ads performance analyst."},
                   {"role": "user", "content": prompt}]
     )
-
-    structured_data = response.choices[0].message.content.strip()
-
-    try:
-        return json.loads(structured_data)
-    except json.JSONDecodeError:
-        return None
-
-# Function to analyze extracted data using GPT-4
-def chatgpt_analysis(table_text):
-    analysis_prompt = f"""
-    You are a Google Ads expert. Here is a table containing key Google Ads performance metrics:
-
-    {table_text}
-
-    Generate a summary report for my PPC account with the following metrics below attached. Identify key trends and provide insights. 
-    Expand on any performance trends and insights. Ensure the tone of voice is friendly but not informal. Speak about the report like you manage the PPC / Google Ads account.
-    Write in UK English at all times. Avoid jargon and unnecessarily complex word choices. Clarity is crucial. 
-    Do not use emojis or exclamation marks. 
-
-    Do not add any salutation such as Dear client or Hello.
-
-    Do not add any valediction such as kind regards or best regards.
-
-    You MUST NOT include any of the following words in the response:
-    {banned_words}
-    """
-
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "system", "content": "You are a Google Ads performance analyst."},
-                  {"role": "user", "content": analysis_prompt}]
-    )
-
     return response.choices[0].message.content
 
-# Streamlit UI
-st.title("AI-Powered PDF Performance Report Extractor & Analysis")
+# Sidebar for file upload & help info
+st.sidebar.header("Upload your PDF here")
+uploaded_file = st.sidebar.file_uploader("Choose a file", type=["pdf"])
 
-uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
+st.sidebar.markdown("""
+---
+### How to Use:
+1️⃣ Upload a **Google Ads Report (PDF)**  
+2️⃣ AI will extract & analyse the data  
+3️⃣ You can **refine the insights** using additional prompts  
+""")
 
 if uploaded_file:
-    raw_text = extract_pdf_text(uploaded_file)
+    st.sidebar.success(f"✅ {uploaded_file.name} uploaded successfully ({uploaded_file.size/1024:.2f} KB)")
+
+    # Extract text from PDF
+    with pdfplumber.open(uploaded_file) as pdf:
+        raw_text = pdf.pages[1].extract_text() if len(pdf.pages) > 1 else None
 
     if raw_text:
-        st.subheader("Extracted Text (Page 2)")
-        st.text_area("Raw Text from PDF:", raw_text, height=200)
+        with st.expander("📜 View Extracted Text (Page 2)", expanded=False):
+            st.text_area("Raw Text from PDF:", raw_text, height=200)
 
-        st.subheader("Structured Data Extraction in Progress...")
-        structured_data = chatgpt_extraction(raw_text)
+        # AI data extraction
+        st.subheader("🔍 Extracting Performance Metrics...")
+        extraction_prompt = f"""
+        Extract key performance metrics from this unstructured text and return a JSON array.
+        Metrics: Clicks, Conversions, Goal Conversion Rate, Cost, Cost per Conversion, 
+        Average CPC, Impressions, CTR, All Conversion Value, ROAS, Search Impression Share.
+        
+        Text:
+        {raw_text}
+
+        Respond only with JSON format.
+        """
+        structured_data = call_openai_api(extraction_prompt)
 
         if structured_data:
-            df = pd.DataFrame(structured_data)
-            st.subheader("Extracted Performance Metrics")
-            st.dataframe(df)
+            try:
+                df = pd.DataFrame(json.loads(structured_data))
+            except json.JSONDecodeError:
+                st.error("⚠️ AI returned invalid data. Try another PDF.")
+                st.stop()
+
+            st.subheader("📊 Extracted Performance Metrics")
+            st.table(df.style.set_properties(**{'text-align': 'left'}))  
 
             csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button("Download Extracted Data as CSV", csv, "extracted_data.csv", "text/csv")
+            st.download_button("📥 Download Extracted Data as CSV", csv, "extracted_data.csv", "text/csv")
 
-            table_text = df.to_string(index=False)
+            # AI Analysis with Loading Progress
+            st.subheader("📈 AI Analysis & Recommendations")
+            with st.spinner("🚀 Generating insights..."):
+                progress_bar = st.progress(0)
+                for percent in range(100):
+                    time.sleep(0.02)
+                    progress_bar.progress(percent + 1)
 
-            st.subheader("AI Analysis & Recommendations")
-            with st.spinner("Analysing table with AI..."):
-                analysis_result = chatgpt_analysis(table_text)
+                table_text = df.to_string(index=False)
+                analysis_prompt = f"""
+                Analyze the following PPC performance data and provide insights.
+                Identify trends and explain performance changes in a clear, professional tone.
+
+                {table_text}
+
+                Avoid jargon and unnecessary complexity. Use UK English. No greetings or sign-offs.
+                """
+                analysis_result = call_openai_api(analysis_prompt)
                 st.write(analysis_result)
 
-            # Allow users to refine AI response with additional input
-            st.subheader("Refine AI Analysis")
-            user_prompt = st.text_area("Enter additional instructions or requests for AI:", key="user_input")
+            # Refinement section
+            st.markdown("""
+                <div style="background-color: #f9f9f9; padding: 15px; border-radius: 10px;">
+                    <h4>Refine AI Analysis</h4>
+                </div>
+            """, unsafe_allow_html=True)
+
+            user_prompt = st.text_area("Enter additional instructions for AI:", key="user_input")
 
             if st.button("Improve Analysis"):
                 if user_prompt.strip():
-                    with st.spinner("Updating analysis with user input..."):
+                    with st.spinner("🔄 Updating analysis with user input..."):
                         refine_prompt = f"""
-                        The user has provided additional instructions to refine the previous analysis. 
-                        The original analysis was:
-
+                        The user provided additional instructions to refine the analysis.
+                        Original analysis:
                         {analysis_result}
 
-                        The user wants improvements or additional details based on this request:
+                        User request:
                         "{user_prompt}"
 
-                        Provide an improved analysis incorporating this feedback. Maintain clarity and a friendly but not informal tone.
-                        Avoid jargon, ensure UK English spelling, and do not include the banned words:
-                        {banned_words}
+                        Provide an improved analysis based on this feedback.
                         """
+                        refined_response = call_openai_api(refine_prompt)
+                        st.subheader("🔄 Updated AI Analysis")
+                        st.write(refined_response)
 
-                        refined_response = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[{"role": "system", "content": "You are a Google Ads performance analyst."},
-                                      {"role": "user", "content": refine_prompt}]
-                        )
-
-                        st.subheader("Updated AI Analysis")
-                        st.write(refined_response.choices[0].message.content)
-
-                        # Display input box again for further refinements
-                        st.subheader("Further Refinements")
+                        st.subheader("✏️ Further Refinements")
                         user_prompt = st.text_area("Enter additional refinements:", key="further_input")
                 else:
-                    st.warning("Please enter some instructions before submitting.")
+                    st.warning("⚠️ Please enter instructions before submitting.")
+
         else:
-            st.error("Failed to extract structured data from the ChatGPT API. Please check the output.")
+            st.error("⚠️ AI extraction failed. Please try a different PDF.")
+
     else:
-        st.error("Could not extract text from page 2.")
+        st.error("⚠️ No text found on page 2. Try uploading a different PDF.")
