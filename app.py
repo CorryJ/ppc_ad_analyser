@@ -126,9 +126,12 @@ if uploaded_file:
 
                 {df.to_string(index=False)}
 
-                Generate a summary report for my PPC account. Identify key trends and provide insights. 
-                Expand on any performance trends and insights. Ensure the tone of voice is friendly but not informal.
-                Write in UK English at all times. Avoid jargon and unnecessarily complex word choices. Clarity is crucial. 
+                Generate a performance analysis report for my PPC account based on the provided metrics.
+                Identify key trends, patterns, and any notable shifts in performance. Highlight areas of improvement and potential optimisation strategies.
+                Provide actionable insights, ensuring explanations are data-driven and avoid vague or generic suggestions.
+                Keep the tone professional but approachable, without excessive formality or technical jargon.
+                Ensure all content is written in UK English and does not include greetings or sign-offs.
+                
                 Do not use emojis or exclamation marks. 
                 Do not use any greetings (e.g., Hello) or sign-offs (e.g., Best regards).
 
