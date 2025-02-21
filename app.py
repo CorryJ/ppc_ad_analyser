@@ -104,7 +104,8 @@ def chatgpt_analysis(table_text):
 
     {table_text}
 
-    Please provide a summary of the table and recommendations to improve performance. 
+    Generate a summary report for my PPC account with the following metrics below attached. Identify key trends and provide insights. 
+    Expand on any performance trends and insights. Ensure the tone of voice is friendly but not informal. Speak about the report like you manage the PPC / Google Ads account.
     Write in UK English at all times (e.g., humanise instead of humanize, colour instead of color). 
     Avoid jargon and unnecessarily complex word choices. Clarity is crucial. 
     Do not use emojis or exclamation marks. 
