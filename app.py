@@ -5,7 +5,7 @@ import pandas as pd
 import json
 import time
 
-openai.api_key = OPENAI_API_KEY
+
 # Set page config
 st.set_page_config(
     page_title="The SEO Works AI Bot",  
@@ -13,6 +13,7 @@ st.set_page_config(
     layout="centered", 
     initial_sidebar_state="expanded"
 )
+
 
 # Custom CSS for styling
 st.markdown("""
@@ -42,6 +43,17 @@ st.sidebar.markdown("""
 2️⃣ AI will extract & analyse the data  
 3️⃣ You can **refine the insights** using additional prompts  
 """)
+
+# Secure API Key Retrieval
+try:
+    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+except KeyError:
+    st.error("⚠️ OpenAI API key not found. Please add it to Streamlit secrets.")
+    st.stop()
+
+# Set OpenAI API key securely
+openai.api_key = OPENAI_API_KEY
+
 
 # Function to extract text from PDF
 def extract_pdf_text(uploaded_file):
