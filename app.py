@@ -5,7 +5,7 @@ import pandas as pd
 import json
 import time
 
-api_key = st.secrets["OPENAI_API_KEY"] 
+openai.api_key = OPENAI_API_KEY
 # Set page config
 st.set_page_config(
     page_title="The SEO Works AI Bot",  
@@ -67,11 +67,11 @@ def chatgpt_extraction(raw_text):
     Respond only with the JSON output and no additional text.
     """
 
-    response = openai.OpenAI(api_key).chat.completions.create(
-        model="gpt-4-turbo",
-        messages=[{"role": "system", "content": "You are a data extraction assistant."},
-                  {"role": "user", "content": prompt}]
-    )
+    response = openai.ChatCompletion.create(
+    model="gpt-4-turbo",
+    messages=[{"role": "system", "content": "You are a Google Ads performance analyst."},
+              {"role": "user", "content": prompt}]
+)
 
     try:
         return json.loads(response.choices[0].message.content.strip())
