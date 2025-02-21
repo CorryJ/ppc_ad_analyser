@@ -35,30 +35,30 @@ banned_words = "Everest, Matterhorn, levate, juncture, moreover, landscape, util
 st.markdown("""
     <style>
         .block-container { padding: 2rem 5rem; }
-        div.stButton > button { width: 100%; font-size: 16px; padding: 10px; }
+        div.stButton > button { width: 100%; font-size: 16px; padding: 10px; background-color: #007BFF; color: white; border-radius: 5px; }
         div.stDownloadButton > button { background-color: #28a745; color: white; font-size: 16px; border-radius: 5px; padding: 10px; }
         div.stTextArea > textarea { font-size: 14px; }
+        .custom-box { background-color: #f9f9f9; padding: 15px; border-radius: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
-# Improve Header Layout
-col1, col2, col3 = st.columns([1,2,1])  # Adjust column widths
-
+# Header with SEO Works Logo
+col1, col2, col3 = st.columns([1,2,1])
 with col2:  
-    st.image("resources/SeoWorksLogo-Dark.png", use_column_width=True)  # Auto-resize image
+    st.image("resources/SeoWorksLogo-Dark.png", use_container_width=True)
     st.markdown('<div style="text-align: center; font-size:26px;"><strong>The SEO Works Ad Analyser</strong></div>', unsafe_allow_html=True)
 
-# Use Sidebar for PDF Upload
-st.sidebar.header("Upload your PDF here")
-uploaded_file = st.sidebar.file_uploader("Choose a file", type=["pdf"])
+# Sidebar for file upload
+st.sidebar.header("📂 Upload your PDF")
+uploaded_file = st.sidebar.file_uploader("Choose a PDF file", type=["pdf"])
+
 st.sidebar.markdown("""
 ---
-### How to Use:
+### ℹ️ How to Use:
 1️⃣ Upload a **Google Ads Report (PDF)**  
 2️⃣ AI will extract & analyse the data  
 3️⃣ You can **refine the insights** using additional prompts  
 """)
-
 
 # Function to extract text from PDF
 def extract_pdf_text(uploaded_file):
@@ -78,9 +78,9 @@ def call_openai_api(prompt, model="gpt-4-turbo"):
         st.error(f"⚠️ OpenAI API error: {str(e)}")
         return None
 
-# Initialize session state for storing analysis
-if "analysis_result" not in st.session_state:
-    st.session_state.analysis_result = ""
+# Initialize session state for storing analysis history
+if "analysis_history" not in st.session_state:
+    st.session_state.analysis_history = []  # Stores all versions of analysis
 
 if uploaded_file:
     st.sidebar.success(f"✅ {uploaded_file.name} uploaded successfully ({uploaded_file.size/1024:.2f} KB)")
@@ -91,7 +91,7 @@ if uploaded_file:
         with st.expander("📜 View Extracted Text (Page 2)", expanded=False):
             st.text_area("Raw Text from PDF:", raw_text, height=200)
 
-        # AI data extraction
+        # AI Data Extraction
         st.subheader("🔍 Extracting Performance Metrics...")
         extraction_prompt = f"""
         Extract key performance metrics from the following unstructured text. 
@@ -114,26 +114,20 @@ if uploaded_file:
         if structured_data:
             df = pd.DataFrame(json.loads(structured_data))
             st.subheader("📊 Extracted Performance Metrics")
-            st.table(df.style.set_properties(**{'text-align': 'left'}))
+            st.dataframe(df)  # Improved styling for tables
 
             csv = df.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Download Extracted Data as CSV", csv, "extracted_data.csv", "text/csv")
 
-            # AI Analysis
-            st.subheader("📈 AI Analysis & Recommendations")
-            with st.spinner("🚀 Generating insights..."):
-                progress_bar = st.progress(0)
-                for percent in range(100):
-                    time.sleep(0.02)
-                    progress_bar.progress(percent + 1)
-            if st.session_state.analysis_result == "":
+            # Generate Initial Analysis if none exists
+            if not st.session_state.analysis_history:
                 analysis_prompt = f"""
                 You are a Google Ads expert. Here is a table containing key Google Ads performance metrics:
 
                 {df.to_string(index=False)}
 
-                Generate a summary report for my PPC account with the following metrics below attached. Identify key trends and provide insights. 
-                Expand on any performance trends and insights. Ensure the tone of voice is friendly but not informal. Speak about the report like you manage the PPC / Google Ads account.
+                Generate a summary report for my PPC account. Identify key trends and provide insights. 
+                Expand on any performance trends and insights. Ensure the tone of voice is friendly but not informal.
                 Write in UK English at all times. Avoid jargon and unnecessarily complex word choices. Clarity is crucial. 
                 Do not use emojis or exclamation marks. 
                 Do not use any greetings (e.g., Hello) or sign-offs (e.g., Best regards).
@@ -141,48 +135,43 @@ if uploaded_file:
                 You MUST NOT include any of the following words in the response:
                 {banned_words}
                 """
-                st.session_state.analysis_result = call_openai_api(analysis_prompt, model="gpt-4o")
+                first_analysis = call_openai_api(analysis_prompt, model="gpt-4o")
+                if first_analysis:
+                    st.session_state.analysis_history.append(first_analysis)
 
-            st.write(st.session_state.analysis_result)
+            # Display All Versions of Analysis
+            for i, analysis in enumerate(st.session_state.analysis_history):
+                st.markdown(f"### 📜 **Analysis Version {i+1}**")
+                st.write(analysis)
 
-            # Refinement section
-            st.markdown("""
-                <div style="background-color: #f9f9f9; padding: 15px; border-radius: 10px;">
-                    <h4>Refine AI Analysis</h4>
-                </div>
-            """, unsafe_allow_html=True)
+                # Refinement Section for Each Analysis Version
+                st.markdown('<div class="custom-box"><h4>🔧 Refine This Analysis</h4></div>', unsafe_allow_html=True)
+                user_prompt = st.text_area(f"Enter refinements for Version {i+1}:", key=f"user_input_{i}")
 
+                # Blue Button for Refining Each Version
+                if st.button(f"Improve Analysis Version {i+1}", key=f"refine_button_{i}"):
+                    if user_prompt.strip():
+                        with st.spinner("🔄 Generating refined analysis..."):
+                            refine_prompt = f"""
+                            The user provided additional instructions to refine the analysis.
+                            Original analysis:
+                            {analysis}
 
-           # st.subheader("✏️ Refine AI Analysis")
-            user_prompt = st.text_area("Enter additional instructions for AI:", key="user_input")
+                            User request:
+                            "{user_prompt}"
 
-            st.markdown("""
-                <style>
-                    div.stButton > button { background-color: #004085; color: white; font-size: 16px; border-radius: 5px; padding: 10px; }
-                </style>
-            """, unsafe_allow_html=True)
+                            Provide an improved analysis based on this feedback.
+                            """
+                            new_analysis = call_openai_api(refine_prompt, model="gpt-4o")
+                            if new_analysis:
+                                st.session_state.analysis_history.append(new_analysis)
 
-            if st.button("Improve Analysis"):
-                if user_prompt.strip():
-                    with st.spinner("🔄 Updating analysis with user input..."):
-                        refine_prompt = f"""
-                        The user provided additional instructions to refine the analysis.
-                        Original analysis:
-                        {st.session_state.analysis_result}
-
-                        User request:
-                        "{user_prompt}"
-
-                        Provide an improved analysis based on this feedback.
-                        """
-                        st.session_state.analysis_result = call_openai_api(refine_prompt, model="gpt-4o")
                         st.rerun()  # Refresh the page to display new results
-                else:
-                    st.warning("⚠️ Please enter some instructions before submitting.")
+                    else:
+                        st.warning("⚠️ Please enter some instructions before submitting.")
 
         else:
             st.error("⚠️ AI returned invalid data. Please try again.")
 
     else:
         st.error("⚠️ No text found on page 2. Try uploading a different PDF.")
-
