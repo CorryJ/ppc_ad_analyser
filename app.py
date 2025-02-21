@@ -49,7 +49,7 @@ banned_words = "Everest, Matterhorn, levate, juncture, moreover, landscape, util
 # Function to extract text from page 2 of the PDF
 def extract_pdf_text(uploaded_file):
     with pdfplumber.open(uploaded_file) as pdf:
-        if len(pdf.pages) > 1:  # Ensure at least 2 pages exist
+        if len(pdf.pages) > 1:  
             return pdf.pages[1].extract_text()
         else:
             return None
@@ -88,10 +88,8 @@ def chatgpt_extraction(raw_text):
                   {"role": "user", "content": prompt}]
     )
 
-    # Extract JSON output
     structured_data = response.choices[0].message.content.strip()
 
-    # Ensure JSON format
     try:
         return json.loads(structured_data)
     except json.JSONDecodeError:
@@ -106,8 +104,7 @@ def chatgpt_analysis(table_text):
 
     Generate a summary report for my PPC account with the following metrics below attached. Identify key trends and provide insights. 
     Expand on any performance trends and insights. Ensure the tone of voice is friendly but not informal. Speak about the report like you manage the PPC / Google Ads account.
-    Write in UK English at all times (e.g., humanise instead of humanize, colour instead of color). 
-    Avoid jargon and unnecessarily complex word choices. Clarity is crucial. 
+    Write in UK English at all times. Avoid jargon and unnecessarily complex word choices. Clarity is crucial. 
     Do not use emojis or exclamation marks. 
 
     You MUST NOT include any of the following words in the response:
@@ -125,7 +122,6 @@ def chatgpt_analysis(table_text):
 # Streamlit UI
 st.title("AI-Powered PDF Performance Report Extractor & Analysis")
 
-# Upload PDF file
 uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
 
 if uploaded_file:
@@ -135,34 +131,60 @@ if uploaded_file:
         st.subheader("Extracted Text (Page 2)")
         st.text_area("Raw Text from PDF:", raw_text, height=200)
 
-        # Call ChatGPT API to structure the extracted data
         st.subheader("Structured Data Extraction in Progress...")
         structured_data = chatgpt_extraction(raw_text)
 
         if structured_data:
-            # Convert JSON response to Pandas DataFrame
             df = pd.DataFrame(structured_data)
-
-            # Display structured table
             st.subheader("Extracted Performance Metrics")
             st.dataframe(df)
 
-            # Provide CSV download option
             csv = df.to_csv(index=False).encode('utf-8')
             st.download_button("Download Extracted Data as CSV", csv, "extracted_data.csv", "text/csv")
 
-            # Convert table to plain text for AI analysis
             table_text = df.to_string(index=False)
 
-            # Run AI analysis
             st.subheader("AI Analysis & Recommendations")
             with st.spinner("Analysing table with AI..."):
                 analysis_result = chatgpt_analysis(table_text)
                 st.write(analysis_result)
 
+            # Allow users to refine AI response with additional input
+            st.subheader("Refine AI Analysis")
+            user_prompt = st.text_area("Enter additional instructions or requests for AI:", key="user_input")
+
+            if st.button("Improve Analysis"):
+                if user_prompt.strip():
+                    with st.spinner("Updating analysis with user input..."):
+                        refine_prompt = f"""
+                        The user has provided additional instructions to refine the previous analysis. 
+                        The original analysis was:
+
+                        {analysis_result}
+
+                        The user wants improvements or additional details based on this request:
+                        "{user_prompt}"
+
+                        Provide an improved analysis incorporating this feedback. Maintain clarity and a friendly but not informal tone.
+                        Avoid jargon, ensure UK English spelling, and do not include the banned words:
+                        {banned_words}
+                        """
+
+                        refined_response = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[{"role": "system", "content": "You are a Google Ads performance analyst."},
+                                      {"role": "user", "content": refine_prompt}]
+                        )
+
+                        st.subheader("Updated AI Analysis")
+                        st.write(refined_response.choices[0].message.content)
+
+                        # Display input box again for further refinements
+                        st.subheader("Further Refinements")
+                        user_prompt = st.text_area("Enter additional refinements:", key="further_input")
+                else:
+                    st.warning("Please enter some instructions before submitting.")
         else:
             st.error("Failed to extract structured data from the ChatGPT API. Please check the output.")
-
     else:
         st.error("Could not extract text from page 2.")
-
