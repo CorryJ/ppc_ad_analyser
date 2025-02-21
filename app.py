@@ -131,10 +131,8 @@ if uploaded_file:
                 Provide actionable insights, ensuring explanations are data-driven and avoid vague or generic suggestions.
                 Keep the tone professional but approachable, without excessive formality or technical jargon.
                 Ensure all content is written in UK English and does not include greetings or sign-offs.
-                
                 Do not use emojis or exclamation marks. 
-                Do not use any greetings (e.g., Hello) or sign-offs (e.g., Best regards).
-
+                
                 You MUST NOT include any of the following words in the response:
                 {banned_words}
                 """
