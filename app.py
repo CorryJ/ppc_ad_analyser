@@ -7,7 +7,7 @@ import time
 
 # Set page config
 st.set_page_config(
-    page_title="The SEO Works AI Bot",  
+    page_title="The SEO Works Paid Search Reporting AI",  
     page_icon="https://www.seoworks.co.uk/wp-content/themes/seoworks/assets/images/fav.png", 
     layout="wide", 
     initial_sidebar_state="expanded"
