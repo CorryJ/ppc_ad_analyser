@@ -37,7 +37,7 @@ st.markdown("""
 col1, col2, col3 = st.columns([1,2,1])
 
 with col2:  
-    st.image("resources/SeoWorksLogo-Dark.png", use_column_width=True)  # Fixed incorrect use_container_width
+    st.image("resources/SeoWorksLogo-Dark.png", use_container_width=True)  # Fixed incorrect use_container_width
     st.markdown('<div style="text-align: center; font-size:26px;"><strong>The SEO Works Ad Analyser</strong></div>', unsafe_allow_html=True)
 
 # Sidebar for file upload & quick help
