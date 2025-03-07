@@ -142,7 +142,7 @@ if uploaded_file:
 
             # Display All Versions of Analysis
             for i, analysis in enumerate(st.session_state.analysis_history):
-                st.markdown(f"### 📜 **Analysis Version {i+1}**")
+                st.markdown(f"<h1>📜 Analysis Version {i+1}</h1>", unsafe_allow_html=True)
                 st.write(analysis)
 
                 # Refinement Section for Each Analysis Version
