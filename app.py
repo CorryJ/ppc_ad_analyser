@@ -122,15 +122,20 @@ if uploaded_file:
             # Generate Initial Analysis if none exists
             if not st.session_state.analysis_history:
                 analysis_prompt = f"""
-                You are a Google Ads expert. Here is a table containing key Google Ads performance metrics:
+                You are an online paid advertising expert who manages ad campaigns on behalf of your client. Generate a summary report for your client's PPC 
+                account with the following metrics provided in the below table:
 
                 {df.to_string(index=False)}
 
-                Generate a performance analysis report for my PPC account based on the provided metrics.
-                Identify key trends, patterns, and any notable shifts in performance. Highlight areas of improvement and potential optimisation strategies.
-                Provide actionable insights, ensuring explanations are data-driven and avoid vague or generic suggestions.
+                Identify key trends and provide insights. Expand on any performance trends and insights. 
+                Can you split out the summary into 3 sections - Traffic & Cost, Engagement, Conversions. 
+                Then provide a section on Key Takeaways & Next Steps.
+
+                Write in a personal style. Ensure the tone of voice is friendly but not informal. 
+                Write in the present perfect tense, for example rather than "The number of clicks has increased by 6.4%" say "We've seen a significant increase in traffic, with clicks up by 6.4%". 
+                Overall we want the analysis to make it seem as though it's 'our' account. This is because when we talk about it, it's our work so the responsibility and performance is on our shoulders.
                 Keep the tone professional but approachable, without excessive formality or technical jargon.
-                Ensure all content is written in UK English and does not include greetings or sign-offs.
+                Ensure all content is written in UK English(e.g., humanise instead of humanize, colour instead of color) and does not include greetings or sign-offs.
                 Do not use emojis or exclamation marks. 
                 
                 You MUST NOT include any of the following words in the response:
