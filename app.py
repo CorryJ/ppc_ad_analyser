@@ -136,7 +136,7 @@ if uploaded_file:
                 You MUST NOT include any of the following words in the response:
                 {banned_words}
                 """
-                first_analysis = call_openai_api(analysis_prompt, model="gpt-4o")
+                first_analysis = call_openai_api(analysis_prompt, model="gpt-4-turbo")
                 if first_analysis:
                     st.session_state.analysis_history.append(first_analysis)
 
@@ -163,7 +163,7 @@ if uploaded_file:
 
                             Provide an improved analysis based on this feedback.
                             """
-                            new_analysis = call_openai_api(refine_prompt, model="gpt-4o")
+                            new_analysis = call_openai_api(refine_prompt, model="gpt-4-turbo")
                             if new_analysis:
                                 st.session_state.analysis_history.append(new_analysis)
 
