@@ -39,6 +39,11 @@ st.markdown("""
         div.stDownloadButton > button { background-color: #28a745; color: white; font-size: 16px; border-radius: 5px; padding: 10px; }
         div.stTextArea > textarea { font-size: 14px; }
         .custom-box { background-color: #f9f9f9; padding: 15px; border-radius: 10px; }
+
+        /* Hide Streamlit header, share menu, and unnecessary elements */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
