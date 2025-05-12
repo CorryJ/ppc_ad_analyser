@@ -71,7 +71,7 @@ def extract_pdf_text(uploaded_file):
         return pdf.pages[1].extract_text() if len(pdf.pages) > 1 else None
 
 # Function to call OpenAI API
-def call_openai_api(prompt, model="gpt-4-turbo"):
+def call_openai_api(prompt, model="gpt-4.1"):
     try:
         response = client.chat.completions.create(
             model=model,
