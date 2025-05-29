@@ -763,12 +763,12 @@ else:
         
         st.markdown("### ✨ Supported Features:")
         st.markdown("""
-        - ✅ Multi-page PDF processing
-        - ✅ Automatic metric extraction
-        - ✅ AI-powered insights
-        - ✅ Custom analysis refinements
-        - ✅ CSV data export
-        - ✅ Analysis history tracking
+        ✅ Multi-page PDF processing
+        ✅ Automatic metric extraction
+        ✅ AI-powered insights
+        ✅ Custom analysis refinements
+        ✅ CSV data export
+        ✅ Analysis history tracking
         """)
         
         st.info("📁 Upload your PDF to get started!")
