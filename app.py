@@ -25,8 +25,6 @@ except KeyError:
 # Initialize OpenAI client (Latest API version)
 client = openai.Client(api_key=OPENAI_API_KEY)
 
-
-# Define banned words list
 banned_words = "Everest, Matterhorn, levate, juncture, moreover, landscape, utilise, maze, labyrinth, cusp, hurdles, bustling, harnessing, unveiling the power,\
        realm, depicted, demystify, insurmountable, new era, poised, unravel, entanglement, unprecedented, eerie connection, unliving, \
        beacon, unleash, delve, enrich, multifaceted, elevate, discover, supercharge, unlock, unleash, tailored, elegant, delve, dive, \
@@ -42,31 +40,43 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
-    /* Modern color scheme and typography */
+    /* SEO Works Brand Colors - Clean Header Design */
     .main-header {
         text-align: center;
-        padding: 2rem 0;
-        background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 50%, #e0e7ff 100%);
+        padding: 3rem 2rem;
+        background: white;
         border-radius: 1rem;
         margin-bottom: 2rem;
-        border: 1px solid #e2e8f0;
+        border: 2px solid #85bd41;
+        box-shadow: 0 4px 20px -4px rgb(133 189 65 / 0.2);
     }
     
     .main-title {
         font-size: 3rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #1e293b, #1e40af, #4338ca);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
+        color: #433D3F;
         margin-bottom: 0.5rem;
+        text-shadow: none;
+    }
+    
+    .main-title .highlight {
+        color: #85bd41;
     }
     
     .main-subtitle {
-        font-size: 1.25rem;
-        color: #64748b;
+        font-size: 1.2rem;
+        color: #433D3F;
         font-weight: 400;
-        margin-bottom: 0;
+        margin-bottom: 1rem;
+        opacity: 0.8;
+    }
+    
+    .brand-accent {
+        width: 80px;
+        height: 4px;
+        background: linear-gradient(90deg, #85bd41, #aadd6a, #f1cc2f);
+        margin: 1rem auto 0;
+        border-radius: 2px;
     }
     
     /* Card styling */
@@ -74,13 +84,13 @@ st.markdown("""
         background: white;
         border-radius: 1rem;
         padding: 1.5rem;
-        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgb(67 61 63 / 0.1), 0 2px 4px -2px rgb(67 61 63 / 0.1);
+        border: 1px solid #c9ef9b;
         margin-bottom: 1.5rem;
     }
     
     .card-header {
-        background: linear-gradient(135deg, #3b82f6, #6366f1);
+        background: linear-gradient(135deg, #85bd41, #aadd6a);
         color: white;
         padding: 1rem 1.5rem;
         margin: -1.5rem -1.5rem 1.5rem -1.5rem;
@@ -90,21 +100,23 @@ st.markdown("""
     }
     
     .upload-card .card-header {
-        background: linear-gradient(135deg, #3b82f6, #6366f1);
+        background: linear-gradient(135deg, #85bd41, #bbd14f);
     }
     
     .metrics-card .card-header {
-        background: linear-gradient(135deg, #85bd41, #85bd4180);
+        background: linear-gradient(135deg, #f1cc2f, #ffdf57);
+        color: #433D3F;
     }
     
     .analysis-card .card-header {
-        background: linear-gradient(135deg, #85bd41, #85bd4180);
+        background: linear-gradient(135deg, #433D3F, #85bd41);
+        color: white;
     }
     
     /* Metric cards */
     .metric-card {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
+        background: linear-gradient(135deg, #c9ef9b, #ffe585);
+        border: 1px solid #85bd41;
         border-radius: 0.75rem;
         padding: 1rem;
         transition: all 0.2s ease;
@@ -112,27 +124,29 @@ st.markdown("""
     }
     
     .metric-card:hover {
-        box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.1);
+        box-shadow: 0 4px 12px -2px rgb(133 189 65 / 0.3);
         transform: translateY(-1px);
+        background: linear-gradient(135deg, #aadd6a, #ffdf57);
     }
     
     .metric-name {
         font-weight: 600;
-        color: #1e293b;
+        color: #433D3F;
         font-size: 0.9rem;
         margin-bottom: 0.25rem;
     }
     
     .metric-period {
         font-size: 0.75rem;
-        color: #64748b;
+        color: #433D3F;
+        opacity: 0.8;
         margin-bottom: 0.5rem;
     }
     
     .metric-value {
         font-size: 1.25rem;
         font-weight: 700;
-        color: #1e293b;
+        color: #433D3F;
     }
     
     .metric-change {
@@ -142,54 +156,57 @@ st.markdown("""
     }
     
     .change-positive {
-        color: #059669;
+        color: #85bd41;
+        font-weight: 700;
     }
     
     .change-negative {
-        color: #dc2626;
+        color: #433D3F;
+        font-weight: 700;
     }
     
     .change-neutral {
-        color: #64748b;
+        color: #433D3F;
+        opacity: 0.6;
     }
     
     /* Analysis content */
     .analysis-content {
         line-height: 1.7;
-        color: #374151;
+        color: #433D3F;
     }
     
     .analysis-content h2 {
-        color: #1e293b;
+        color: #433D3F;
         font-weight: 700;
         font-size: 1.25rem;
         margin: 1.5rem 0 1rem 0;
         padding-bottom: 0.5rem;
-        border-bottom: 2px solid #e2e8f0;
+        border-bottom: 2px solid #85bd41;
     }
     
     /* Button styling */
     .stButton > button {
-        background: linear-gradient(135deg, #10b981, #059669) !important;
+        background: linear-gradient(135deg, #85bd41, #aadd6a) !important;
         color: white !important;
         border: none !important;
         border-radius: 0.75rem !important;
         padding: 0.75rem 2rem !important;
         font-weight: 600 !important;
-        box-shadow: 0 4px 12px -2px rgb(16 185 129 / 0.3) !important;
+        box-shadow: 0 4px 12px -2px rgb(133 189 65 / 0.3) !important;
         transition: all 0.2s ease !important;
     }
     
     .stButton > button:hover {
-        background: linear-gradient(135deg, #059669, #047857) !important;
+        background: linear-gradient(135deg, #aadd6a, #bbd14f) !important;
         transform: translateY(-1px) !important;
-        box-shadow: 0 8px 16px -4px rgb(16 185 129 / 0.4) !important;
+        box-shadow: 0 8px 16px -4px rgb(133 189 65 / 0.4) !important;
     }
     
     /* Custom refinement button */
     .refine-button {
-        background: linear-gradient(135deg, #3b82f6, #6366f1) !important;
-        color: white !important;
+        background: linear-gradient(135deg, #f1cc2f, #ffdf57) !important;
+        color: #433D3F !important;
         border: none !important;
         border-radius: 0.5rem !important;
         padding: 0.5rem 1rem !important;
@@ -199,18 +216,20 @@ st.markdown("""
     
     /* File uploader styling */
     .uploadedfile {
-        background: #f1f5f9 !important;
-        border: 1px solid #cbd5e1 !important;
+        background: linear-gradient(135deg, #c9ef9b, #aadd6a) !important;
+        border: 1px solid #85bd41 !important;
         border-radius: 0.5rem !important;
         padding: 0.75rem !important;
+        color: #433D3F !important;
     }
     
     /* Custom box styling */
     .custom-box {
-        background-color: #f9f9f9;
+        background: linear-gradient(135deg, #c9ef9b, #ffe585);
         padding: 15px;
         border-radius: 10px;
-        border-left: 4px solid #3b82f6;
+        border-left: 4px solid #85bd41;
+        color: #433D3F;
     }
     
     /* Responsive design */
@@ -468,8 +487,9 @@ if 'analysis_history' not in st.session_state:
 # Header
 st.markdown("""
 <div class="main-header">
-    <h1 class="main-title">📊 The SEO Works Ad Analyser</h1>
+    <h1 class="main-title">📊 The SEO Works <span class="highlight">Ad Analyser</span></h1>
     <p class="main-subtitle">Transform your PPC reports into actionable insights with AI-powered analysis</p>
+    <div class="brand-accent"></div>
 </div>
 """, unsafe_allow_html=True)
 
