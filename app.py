@@ -552,7 +552,7 @@ if uploaded_file:
             Respond only with the JSON output and no additional text.
             """
             
-            with st.spinner("🤖 AI is analyzing your data..."):
+            with st.spinner("🤖 AI is analysing your data..."):
                 structured_data = call_openai_api(extraction_prompt)
 
             if structured_data:
