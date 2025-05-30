@@ -10,7 +10,8 @@ from typing import Optional, Dict, Any
 # Page configuration
 st.set_page_config(
     page_title="The SEO Works Google Ads Analyser",
-    page_icon="📊",
+    # page_icon="📊",
+    page_icon="https://www.seoworks.co.uk/wp-content/themes/seoworks/assets/images/fav.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
