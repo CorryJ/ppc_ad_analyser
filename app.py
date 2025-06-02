@@ -6,6 +6,7 @@ import json
 import time
 import hashlib
 from typing import Optional, Dict, Any
+import io
 
 # Page configuration
 st.set_page_config(
@@ -22,9 +23,9 @@ except KeyError:
     st.error("⚠️ OpenAI API key not found. Please add it to Streamlit secrets.")
     st.stop()
 
-# Initialize OpenAI client (Latest API version)
 client = openai.Client(api_key=OPENAI_API_KEY)
 
+# Define banned words list
 banned_words = "Everest, Matterhorn, levate, juncture, moreover, landscape, utilise, maze, labyrinth, cusp, hurdles, bustling, harnessing, unveiling the power,\
        realm, depicted, demystify, insurmountable, new era, poised, unravel, entanglement, unprecedented, eerie connection, unliving, \
        beacon, unleash, delve, enrich, multifaceted, elevate, discover, supercharge, unlock, unleash, tailored, elegant, delve, dive, \
@@ -48,7 +49,7 @@ st.markdown("""
         border-radius: 1rem;
         margin-bottom: 2rem;
         border: 2px solid #85bd41;
-        box-shadow: 0 4px 20px -4px rgb(133 189 65 / 0.2);
+        box-shadow: 0 4px 20px -4px rgba(133, 189, 65, 0.2);
     }
     
     .main-title {
@@ -84,7 +85,7 @@ st.markdown("""
         background: white;
         border-radius: 1rem;
         padding: 1.5rem;
-        box-shadow: 0 4px 6px -1px rgb(67 61 63 / 0.1), 0 2px 4px -2px rgb(67 61 63 / 0.1);
+        box-shadow: 0 4px 6px -1px rgba(67, 61, 63, 0.1), 0 2px 4px -2px rgba(67, 61, 63, 0.1);
         border: 1px solid #c9ef9b;
         margin-bottom: 1.5rem;
     }
@@ -124,7 +125,7 @@ st.markdown("""
     }
     
     .metric-card:hover {
-        box-shadow: 0 4px 12px -2px rgb(133 189 65 / 0.3);
+        box-shadow: 0 4px 12px -2px rgba(133, 189, 65, 0.3);
         transform: translateY(-1px);
         background: linear-gradient(135deg, #aadd6a, #ffdf57);
     }
@@ -193,25 +194,14 @@ st.markdown("""
         border-radius: 0.75rem !important;
         padding: 0.75rem 2rem !important;
         font-weight: 600 !important;
-        box-shadow: 0 4px 12px -2px rgb(133 189 65 / 0.3) !important;
+        box-shadow: 0 4px 12px -2px rgba(133, 189, 65, 0.3) !important;
         transition: all 0.2s ease !important;
     }
     
     .stButton > button:hover {
         background: linear-gradient(135deg, #aadd6a, #bbd14f) !important;
         transform: translateY(-1px) !important;
-        box-shadow: 0 8px 16px -4px rgb(133 189 65 / 0.4) !important;
-    }
-    
-    /* Custom refinement button */
-    .refine-button {
-        background: linear-gradient(135deg, #f1cc2f, #ffdf57) !important;
-        color: #433D3F !important;
-        border: none !important;
-        border-radius: 0.5rem !important;
-        padding: 0.5rem 1rem !important;
-        font-weight: 600 !important;
-        font-size: 0.875rem !important;
+        box-shadow: 0 8px 16px -4px rgba(133, 189, 65, 0.4) !important;
     }
     
     /* File uploader styling */
@@ -356,8 +346,14 @@ def parse_structured_data(structured_data: str) -> Optional[pd.DataFrame]:
         return None
     
     try:
-        # Try to find JSON in the response
+        # Clean the response first
         structured_data = structured_data.strip()
+        
+        # Remove any markdown code blocks
+        if '```json' in structured_data:
+            structured_data = structured_data.split('```json')[1].split('```')[0].strip()
+        elif '```' in structured_data:
+            structured_data = structured_data.split('```')[1].split('```')[0].strip()
         
         # Look for JSON array markers
         start_idx = structured_data.find('[')
@@ -367,6 +363,14 @@ def parse_structured_data(structured_data: str) -> Optional[pd.DataFrame]:
             json_str = structured_data[start_idx:end_idx]
         else:
             json_str = structured_data
+        
+        # Try to fix common JSON issues
+        json_str = json_str.replace("'", '"')  # Replace single quotes with double quotes
+        json_str = json_str.replace('True', 'true').replace('False', 'false').replace('None', 'null')
+        
+        # Remove any trailing commas before closing brackets
+        import re
+        json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
         
         data = json.loads(json_str)
         
@@ -400,8 +404,24 @@ def parse_structured_data(structured_data: str) -> Optional[pd.DataFrame]:
         
     except json.JSONDecodeError as e:
         st.error(f"Failed to parse AI response as JSON: {str(e)}")
-        st.text_area("Raw AI Response (for debugging):", structured_data, height=200)
-        return None
+        
+        # Try to extract data manually if JSON parsing fails
+        try:
+            st.warning("Attempting to recover data from malformed JSON...")
+            
+            # Show the problematic response for debugging
+            with st.expander("Debug: Raw AI Response", expanded=False):
+                st.text_area("Raw response:", structured_data, height=300)
+            
+            # Try to create a sample dataset if parsing completely fails
+            sample_data = [
+                {"Metric": "Data Extraction Error", "Value": "Please try again", "Change (%)": None, "Period": "Error"}
+            ]
+            return pd.DataFrame(sample_data)
+            
+        except Exception as fallback_error:
+            st.error(f"Complete parsing failure: {str(fallback_error)}")
+            return None
         
     except Exception as e:
         st.error(f"Unexpected error parsing data: {str(e)}")
@@ -411,23 +431,57 @@ def get_change_class(change_str):
     """Return CSS class based on change direction"""
     if not change_str or str(change_str).lower() in ['null', 'none', '']:
         return 'change-neutral'
-    elif str(change_str).startswith('+'):
-        return 'change-positive'
-    elif str(change_str).startswith('-'):
-        return 'change-negative'
-    else:
-        return 'change-neutral'
+    
+    # Extract numeric value
+    try:
+        # Remove % and + signs, keep - sign
+        clean_str = str(change_str).replace('%', '').replace('+', '').strip()
+        num_value = float(clean_str)
+        
+        if num_value > 0:
+            return 'change-positive'
+        elif num_value < 0:
+            return 'change-negative'
+        else:
+            return 'change-neutral'
+            
+    except ValueError:
+        # Fallback to string checking
+        change_clean = str(change_str).strip()
+        if change_clean.startswith('+'):
+            return 'change-positive'
+        elif change_clean.startswith('-'):
+            return 'change-negative'
+        else:
+            return 'change-neutral'
 
 def get_change_icon(change_str):
     """Return appropriate icon for change"""
     if not change_str or str(change_str).lower() in ['null', 'none', '']:
         return '●'
-    elif str(change_str).startswith('+'):
-        return '↗'
-    elif str(change_str).startswith('-'):
-        return '↘'
-    else:
-        return '●'
+    
+    # Extract numeric value
+    try:
+        # Remove % and + signs, keep - sign
+        clean_str = str(change_str).replace('%', '').replace('+', '').strip()
+        num_value = float(clean_str)
+        
+        if num_value > 0:
+            return '↗'
+        elif num_value < 0:
+            return '↘'
+        else:
+            return '●'
+            
+    except ValueError:
+        # Fallback to string checking
+        change_clean = str(change_str).strip()
+        if change_clean.startswith('+'):
+            return '↗'
+        elif change_clean.startswith('-'):
+            return '↘'
+        else:
+            return '●'
 
 def format_metric_value(value):
     """Format metric values to ensure proper display of currency and percentages"""
@@ -462,21 +516,70 @@ def format_metric_value(value):
     return value_str
 
 def format_change_value(change):
-    """Format change values to ensure % symbol is shown"""
+    """Format change values to ensure % symbol is shown and + sign for positive values"""
     if not change or pd.isna(change) or str(change).lower() in ['null', 'none', '']:
         return ''
     
     change_str = str(change).strip()
     
-    # If it already has %, return as is
+    # If it's empty after stripping, return empty
+    if not change_str:
+        return ''
+    
+    # If it already has %, work with it
     if '%' in change_str:
+        # Extract the number part
+        number_part = change_str.replace('%', '').strip()
+    else:
+        number_part = change_str
+        
+    # Try to convert to float to determine sign
+    try:
+        num_value = float(number_part)
+        
+        # Format with proper sign and %
+        if num_value > 0:
+            return f"+{abs(num_value)}%"
+        elif num_value < 0:
+            return f"-{abs(num_value)}%"
+        else:
+            return "0%"
+            
+    except ValueError:
+        # If we can't parse as number, return as-is with % if not present
+        if '%' not in change_str:
+            return f"{change_str}%"
         return change_str
+
+def get_clipboard_text(df: pd.DataFrame, analysis: str) -> str:
+    """Create clipboard-friendly text version of the report"""
+    clipboard_text = "📊 THE SEO WORKS - PPC ANALYSIS REPORT\n"
+    clipboard_text += "=" * 50 + "\n\n"
+    clipboard_text += f"Generated on: {time.strftime('%B %d, %Y')}\n\n"
     
-    # If it looks like a percentage change, add %
-    if change_str.startswith(('+', '-')) and change_str[1:].replace('.', '').isdigit():
-        return f"{change_str}%"
+    # Add metrics
+    if not df.empty:
+        clipboard_text += "KEY PERFORMANCE METRICS\n"
+        clipboard_text += "-" * 30 + "\n\n"
+        
+        for _, row in df.iterrows():
+            clipboard_text += f"• {row.get('Metric', '')}: {row.get('Value', '')}"
+            if row.get('Change (%)', ''):
+                clipboard_text += f" ({row.get('Change (%)', '')})"
+            clipboard_text += f" [{row.get('Period', '')}]\n"
+        
+        clipboard_text += "\n"
     
-    return change_str
+    # Add analysis
+    if analysis:
+        clipboard_text += "ANALYSIS REPORT\n"
+        clipboard_text += "-" * 20 + "\n\n"
+        
+        # Clean up analysis for plain text
+        clean_analysis = analysis.replace('**', '').replace('##', '').replace('#', '')
+        clipboard_text += clean_analysis
+    
+    return clipboard_text
 
 # Initialize session state
 if 'extracted_data' not in st.session_state:
@@ -528,31 +631,32 @@ if uploaded_file:
             st.subheader("🔍 Extracting Performance Metrics...")
             
             extraction_prompt = f"""
-            Extract ALL performance metrics from the following unstructured text. 
-            Present them in a structured JSON format with fields: "Metric", "Value", "Change (%)", and "Period".
+            You are a data extraction expert. Extract ALL performance metrics from the following text and return them as a valid JSON array.
 
-            Extract ALL metrics including:
-            - Month on Month data: Clicks, Conversions, Goal Conversion Rate, Cost, Cost per Conversion, Average CPC, Impressions, CTR, Search Impression Share, All Conversion Value, ROAS, Average Purchase Revenue
-            - Year on Year data: All same metrics as above but for year-over-year comparison
-            - Shopify Stats: Total Revenue, Total Sales (both Month on Month and Year on Year)
-            - Any other performance metrics found in the document
+            IMPORTANT: Return ONLY valid JSON - no explanations, no markdown, no extra text.
+
+            Required JSON format:
+            [
+              {{"Metric": "Clicks", "Value": "689", "Change (%)": 33.3, "Period": "Month on Month"}},
+              {{"Metric": "Cost", "Value": "£6,827.31", "Change (%)": 45.4, "Period": "Month on Month"}}
+            ]
 
             Rules:
-            1. Return ONLY a valid JSON array
-            2. Each object must have "Metric", "Value", and "Period" fields
-            3. Include "Change (%)" only if percentage change data is available, otherwise use null
-            4. Use "Period" field to indicate if it's "Month on Month", "Year on Year", or "Current Period"
-            5. For Shopify stats, clearly indicate the source as "Shopify"
-            6. Extract ALL numerical performance data found in the document
-            7. Ensure all JSON is properly formatted
+            1. Return ONLY a valid JSON array starting with [ and ending with ]
+            2. Each object must have exactly these fields: "Metric", "Value", "Change (%)", "Period"
+            3. Use null for missing "Change (%)" values (not "null" in quotes)
+            4. Keep currency symbols (£) and percentage symbols (%) in the "Value" field
+            5. Use "Month on Month" for current vs previous month comparisons
+            6. Use "Year on Year" for current vs same month last year
+            7. Use the actual month name (e.g., "March 2025") for historical data
+            8. Extract ALL metrics including: Clicks, Conversions, Goal Conversion Rate, Cost, Cost per Conversion, Average CPC, Impressions, CTR, Search Impression Share, etc.
 
-            Text:
+            Text to extract from:
             {raw_text}
 
-            Respond only with the JSON output and no additional text.
-            """
+            JSON Response:"""
             
-            with st.spinner("🤖 AI is analysing your data..."):
+            with st.spinner("🤖 AI is analyzing your data..."):
                 structured_data = call_openai_api(extraction_prompt)
 
             if structured_data:
@@ -634,14 +738,36 @@ if uploaded_file:
         
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # Download button
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            "📥 Download Extracted Data as CSV", 
-            csv, 
-            f"ads_analysis_{int(time.time())}.csv", 
-            "text/csv"
-        )
+        # Export Options
+        st.markdown("### 📤 Export Options")
+        
+        # Create export buttons
+        col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
+        
+        with col1:
+            # Simple CSV Export (no complex dependencies)
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "📊 Download CSV", 
+                csv, 
+                f"ads_analysis_{int(time.time())}.csv", 
+                "text/csv",
+                key="download_csv"
+            )
+        
+        with col2:
+            # Clipboard Copy
+            if st.button("📋 Copy Text", key="copy_clipboard"):
+                clipboard_text = get_clipboard_text(df, st.session_state.analysis_history[-1] if st.session_state.analysis_history else "")
+                
+                # Display the text in a text area for easy copying
+                st.text_area(
+                    "Copy this text to clipboard:",
+                    value=clipboard_text,
+                    height=200,
+                    key="clipboard_text"
+                )
+                st.success("✅ Text ready to copy! Select all and copy from the text area above.")
 
         # Generate Initial Analysis if none exists
         if not st.session_state.analysis_history:
