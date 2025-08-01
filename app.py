@@ -5,6 +5,7 @@ import pandas as pd
 import json
 import time
 import hashlib
+import re
 from typing import Optional, Dict, Any
 import io
 
@@ -285,18 +286,18 @@ def extract_pdf_text(uploaded_file) -> Optional[str]:
         return None
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
-def cached_openai_call(prompt_hash: str, prompt: str, model: str = "gpt-4.1") -> Optional[str]:
+def cached_openai_call(prompt_hash: str, prompt: str, model: str = "gpt-4-turbo") -> Optional[str]:
     """Cached OpenAI API call to avoid repeated requests"""
     return call_openai_api_with_retry(prompt, model)
 
-def call_openai_api_with_retry(prompt: str, model: str = "gpt-4.1", max_retries: int = 3) -> Optional[str]:
+def call_openai_api_with_retry(prompt: str, model: str = "gpt-4-turbo", max_retries: int = 3) -> Optional[str]:
     """Call OpenAI API with retry logic and exponential backoff"""
     for attempt in range(max_retries):
         try:
             response = client.chat.completions.create(
-                model=model,
+                model=model,  # Changed from "gpt-4.1" to "gpt-4-turbo"
                 messages=[
-                    {"role": "system", "content": "You are a data extraction assistant."},
+                    {"role": "system", "content": "You are a data extraction assistant specialized in parsing advertising reports."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.1,  # Lower temperature for more consistent results
@@ -333,99 +334,184 @@ def call_openai_api_with_retry(prompt: str, model: str = "gpt-4.1", max_retries:
     
     return None
 
-def call_openai_api(prompt: str, model: str = "gpt-4.1") -> Optional[str]:
+def call_openai_api(prompt: str, model: str = "gpt-4-turbo") -> Optional[str]:
     """Main OpenAI API call function with caching"""
     # Create hash for caching
     prompt_hash = hashlib.md5(f"{prompt}{model}".encode()).hexdigest()
     return cached_openai_call(prompt_hash, prompt, model)
 
+def clean_json_string(json_str: str) -> str:
+    """
+    Comprehensive JSON string cleaning to handle unterminated strings and special characters
+    """
+    # Remove any markdown code blocks first
+    if '```json' in json_str:
+        json_str = json_str.split('```json')[1].split('```')[0].strip()
+    elif '```' in json_str:
+        json_str = json_str.split('```')[1].split('```')[0].strip()
+    
+    # Extract just the JSON array part
+    start_idx = json_str.find('[')
+    end_idx = json_str.rfind(']') + 1
+    
+    if start_idx != -1 and end_idx > start_idx:
+        json_str = json_str[start_idx:end_idx]
+    
+    # Fix common JSON issues
+    # 1. Replace single quotes with double quotes (but be careful about apostrophes)
+    json_str = re.sub(r"'([^']*)':", r'"\1":', json_str)  # Fix keys
+    json_str = re.sub(r":\s*'([^']*)'", r': "\1"', json_str)  # Fix values
+    
+    # 2. Handle infinity values
+    json_str = json_str.replace('+∞%', 'null')
+    json_str = json_str.replace('-∞%', 'null')
+    json_str = json_str.replace('∞%', 'null')
+    json_str = json_str.replace('+∞', 'null')
+    json_str = json_str.replace('-∞', 'null')
+    json_str = json_str.replace('∞', 'null')
+    
+    # 3. Fix boolean values
+    json_str = json_str.replace('True', 'true').replace('False', 'false').replace('None', 'null')
+    
+    # 4. Remove trailing commas
+    json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
+    
+    # 5. Fix unescaped quotes within strings - this is the main fix for the error
+    # Find all string values and escape quotes within them
+    def fix_quotes_in_strings(match):
+        """Fix quotes within JSON string values"""
+        full_match = match.group(0)
+        key_part = match.group(1)  # The key part like "Metric": 
+        string_content = match.group(2)  # The actual string content
+        
+        # Escape any unescaped quotes within the string content
+        fixed_content = string_content.replace('\\', '\\\\')  # Escape backslashes first
+        fixed_content = fixed_content.replace('"', '\\"')     # Escape quotes
+        fixed_content = fixed_content.replace('\n', '\\n')    # Escape newlines
+        fixed_content = fixed_content.replace('\r', '\\r')    # Escape carriage returns
+        fixed_content = fixed_content.replace('\t', '\\t')    # Escape tabs
+        
+        return f'{key_part}"{fixed_content}"'
+    
+    # Pattern to match JSON key-value pairs with string values
+    # This finds patterns like "Metric": "some value with "quotes" in it"
+    pattern = r'("(?:Metric|Value|Period|Change \(%\))"\s*:\s*")([^"]*(?:"[^"]*"[^"]*)*)"'
+    json_str = re.sub(pattern, fix_quotes_in_strings, json_str)
+    
+    return json_str
+
 def parse_structured_data(structured_data: str) -> Optional[pd.DataFrame]:
-    """Parse AI response into DataFrame with robust error handling"""
+    """
+    Enhanced parsing function with multiple fallback strategies
+    """
     if not structured_data or not structured_data.strip():
         st.error("No data received from AI analysis.")
         return None
     
+    # Strategy 1: Try with comprehensive cleaning
     try:
-        # Clean the response first
-        structured_data = structured_data.strip()
+        cleaned_json = clean_json_string(structured_data)
+        data = json.loads(cleaned_json)
         
-        # Remove any markdown code blocks
-        if '```json' in structured_data:
-            structured_data = structured_data.split('```json')[1].split('```')[0].strip()
-        elif '```' in structured_data:
-            structured_data = structured_data.split('```')[1].split('```')[0].strip()
-        
-        # Look for JSON array markers
-        start_idx = structured_data.find('[')
-        end_idx = structured_data.rfind(']') + 1
-        
-        if start_idx != -1 and end_idx > start_idx:
-            json_str = structured_data[start_idx:end_idx]
-        else:
-            json_str = structured_data
-        
-        # Try to fix common JSON issues
-        json_str = json_str.replace("'", '"')  # Replace single quotes with double quotes
-        json_str = json_str.replace('True', 'true').replace('False', 'false').replace('None', 'null')
-        
-        # Remove any trailing commas before closing brackets
-        import re
-        json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
-        
-        data = json.loads(json_str)
-        
-        # Validate data structure
-        if not isinstance(data, list):
-            st.error("AI response is not in the expected list format.")
-            return None
+        if isinstance(data, list) and len(data) > 0:
+            df = pd.DataFrame(data)
+            st.success(f"✅ Successfully parsed {len(data)} metrics")
+            return df
             
-        if len(data) == 0:
-            st.warning("No metrics found in the PDF. The document might not contain recognizable performance data.")
-            return None
+    except json.JSONDecodeError as e:
+        st.warning(f"Strategy 1 failed: {str(e)}")
+    
+    # Strategy 2: Try to extract data line by line using regex
+    try:
+        st.info("Attempting alternative parsing method...")
+        metrics_data = []
         
-        # Validate each item has required fields
-        required_fields = ['Metric', 'Value']
-        for item in data:
-            if not isinstance(item, dict):
-                st.error("Invalid data format in AI response.")
-                return None
-            for field in required_fields:
-                if field not in item:
-                    st.warning(f"Missing field '{field}' in some metrics. Proceeding with available data.")
+        # Look for JSON-like objects in the text
+        object_pattern = r'\{\s*"Metric"\s*:\s*"([^"]+)"\s*,\s*"Value"\s*:\s*"([^"]+)"\s*,\s*"Change \(%\)"\s*:\s*([^,}]+)\s*,\s*"Period"\s*:\s*"([^"]+)"\s*\}'
         
-        df = pd.DataFrame(data)
+        matches = re.findall(object_pattern, structured_data, re.DOTALL)
         
-        # Clean and validate DataFrame
-        if df.empty:
-            st.warning("No valid data could be extracted from the response.")
-            return None
+        for match in matches:
+            metric, value, change, period = match
             
+            # Clean up the change value
+            change = change.strip().rstrip(',')
+            if change in ['null', 'None', '']:
+                change = None
+            else:
+                try:
+                    change = float(change)
+                except ValueError:
+                    change = None
+            
+            metrics_data.append({
+                'Metric': metric.strip(),
+                'Value': value.strip(),
+                'Change (%)': change,
+                'Period': period.strip()
+            })
+        
+        if metrics_data:
+            df = pd.DataFrame(metrics_data)
+            st.success(f"✅ Successfully extracted {len(metrics_data)} metrics using fallback method")
+            return df
+    
+    except Exception as e:
+        st.warning(f"Strategy 2 failed: {str(e)}")
+    
+    # Strategy 3: Create fallback data
+    try:
+        st.info("Creating fallback data...")
+        fallback_data = [
+            {"Metric": "Parsing Error", "Value": "Check Debug Info", "Change (%)": None, "Period": "N/A"},
+            {"Metric": "Manual Review Required", "Value": "See Raw Response", "Change (%)": None, "Period": "N/A"}
+        ]
+        
+        df = pd.DataFrame(fallback_data)
+        st.warning("⚠️ Created fallback data. Please check the debug section and try again.")
+        
+        # Show debug information
+        with st.expander("🔍 Debug Information - Raw AI Response", expanded=True):
+            st.text_area("Full AI Response:", structured_data, height=400)
+            st.text_area("Cleaned JSON (if any):", clean_json_string(structured_data), height=200)
+        
         return df
         
-    except json.JSONDecodeError as e:
-        st.error(f"Failed to parse AI response as JSON: {str(e)}")
-        
-        # Try to extract data manually if JSON parsing fails
-        try:
-            st.warning("Attempting to recover data from malformed JSON...")
-            
-            # Show the problematic response for debugging
-            with st.expander("Debug: Raw AI Response", expanded=False):
-                st.text_area("Raw response:", structured_data, height=300)
-            
-            # Try to create a sample dataset if parsing completely fails
-            sample_data = [
-                {"Metric": "Data Extraction Error", "Value": "Please try again", "Change (%)": None, "Period": "Error"}
-            ]
-            return pd.DataFrame(sample_data)
-            
-        except Exception as fallback_error:
-            st.error(f"Complete parsing failure: {str(fallback_error)}")
-            return None
-        
     except Exception as e:
-        st.error(f"Unexpected error parsing data: {str(e)}")
+        st.error(f"All parsing strategies failed: {str(e)}")
         return None
+
+def get_safer_extraction_prompt(raw_text: str) -> str:
+    """
+    Generate a safer extraction prompt that's less likely to cause JSON issues
+    """
+    return f"""
+Extract key performance metrics from this Google Ads report and return as valid JSON.
+
+CRITICAL JSON RULES:
+1. Use ONLY double quotes, never single quotes
+2. Escape any quotes in string values with backslash
+3. Use null (not "null") for missing values
+4. Keep numbers as numbers, not strings for Change (%)
+5. Remove % symbol from Change (%) values - just use the number
+6. Be extra careful with product names containing quotes or special characters
+
+Return EXACTLY this format:
+[
+  {{"Metric": "Clicks", "Value": "2025", "Change (%)": 11.3, "Period": "Month on Month"}},
+  {{"Metric": "Impressions", "Value": "173.25K", "Change (%)": 33.9, "Period": "Month on Month"}},
+  {{"Metric": "Cost", "Value": "£1564.51", "Change (%)": 22.4, "Period": "Month on Month"}},
+  {{"Metric": "Conversions", "Value": "8.75", "Change (%)": -66.6, "Period": "Month on Month"}},
+  {{"Metric": "CTR", "Value": "1.17%", "Change (%)": -16.9, "Period": "Month on Month"}},
+  {{"Metric": "Average CPC", "Value": "£0.77", "Change (%)": 10.0, "Period": "Month on Month"}},
+  {{"Metric": "Cost per Conversion", "Value": "£178.73", "Change (%)": 266.8, "Period": "Month on Month"}},
+  {{"Metric": "Conversion Rate", "Value": "0.2%", "Change (%)": -81.9, "Period": "Month on Month"}}
+]
+
+Text to analyze:
+{raw_text[:3000]}...
+
+JSON only:"""
 
 def get_change_class(change_str):
     """Return CSS class based on change direction"""
@@ -600,6 +686,9 @@ st.markdown("""
 st.sidebar.header("📂 Upload your PDF")
 uploaded_file = st.sidebar.file_uploader("Choose a PDF file", type=["pdf"])
 
+# Add debug option in sidebar
+debug_mode = st.sidebar.checkbox("🔍 Debug Mode", value=False)
+
 st.sidebar.markdown("""
 ---
 ### ℹ️ How to Use:
@@ -627,46 +716,53 @@ if uploaded_file:
             with st.expander("📜 View Extracted Text", expanded=False):
                 st.text_area("Raw Text from PDF:", raw_text, height=300)
 
-            # AI Data Extraction
+            # AI Data Extraction - Updated Section
             st.subheader("🔍 Extracting Performance Metrics...")
             
-            extraction_prompt = f"""
-            You are a data extraction expert. Extract ALL performance metrics from the following text and return them as a valid JSON array.
-
-            IMPORTANT: Return ONLY valid JSON - no explanations, no markdown, no extra text.
-
-            Required JSON format:
-            [
-              {{"Metric": "Clicks", "Value": "689", "Change (%)": 33.3, "Period": "Month on Month"}},
-              {{"Metric": "Cost", "Value": "£6,827.31", "Change (%)": 45.4, "Period": "Month on Month"}}
-            ]
-
-            Rules:
-            1. Return ONLY a valid JSON array starting with [ and ending with ]
-            2. Each object must have exactly these fields: "Metric", "Value", "Change (%)", "Period"
-            3. Use null for missing "Change (%)" values (not "null" in quotes)
-            4. Keep currency symbols (£) and percentage symbols (%) in the "Value" field
-            5. Use "Month on Month" for current vs previous month comparisons
-            6. Use "Year on Year" for current vs same month last year
-            7. Use the actual month name (e.g., "March 2025") for historical data
-            8. Extract ALL metrics including: Clicks, Conversions, Goal Conversion Rate, Cost, Cost per Conversion, Average CPC, Impressions, CTR, Search Impression Share, etc.
-
-            Text to extract from:
-            {raw_text}
-
-            JSON Response:"""
+            # Use the safer extraction prompt
+            extraction_prompt = get_safer_extraction_prompt(raw_text)
             
             with st.spinner("🤖 AI is analyzing your data..."):
-                structured_data = call_openai_api(extraction_prompt)
+                structured_data = call_openai_api(extraction_prompt, model="gpt-4-turbo")
 
             if structured_data:
+                # Show AI response in debug mode
+                if debug_mode:
+                    st.sidebar.subheader("🔍 AI Response Debug")
+                    st.sidebar.text_area("Raw AI Response", structured_data, height=200)
+                
+                # Use the robust parsing function
                 df = parse_structured_data(structured_data)
                 
-                if df is not None:
+                if df is not None and not df.empty:
                     st.session_state.extracted_data = df
                     st.success("✅ Data extraction completed successfully!")
                 else:
                     st.error("❌ Failed to extract valid data from the PDF.")
+                    
+                    # Offer manual retry with different approach
+                    if st.button("🔄 Try Alternative Extraction Method"):
+                        st.info("Attempting simpler extraction...")
+                        
+                        # Simpler prompt for problematic cases
+                        simple_prompt = f"""
+                        Extract the main metrics from this Google Ads report. Return as simple JSON array.
+                        Focus only on the key metrics from the dashboard:
+                        
+                        From this text: {raw_text[:2000]}
+                        
+                        Return format:
+                        [{{"Metric": "Clicks", "Value": "2025", "Change (%)": 11.3, "Period": "Month on Month"}}]
+                        """
+                        
+                        simple_response = call_openai_api(simple_prompt, model="gpt-4-turbo")
+                        if simple_response:
+                            df_simple = parse_structured_data(simple_response)
+                            if df_simple is not None:
+                                st.session_state.extracted_data = df_simple
+                                st.success("✅ Alternative extraction successful!")
+                            else:
+                                st.error("❌ Alternative extraction also failed.")
             else:
                 st.error("❌ AI analysis failed. Please try again.")
         else:
@@ -801,7 +897,7 @@ if uploaded_file:
             """
             
             with st.spinner("📝 Generating comprehensive analysis..."):
-                first_analysis = call_openai_api(analysis_prompt, model="gpt-4.1")
+                first_analysis = call_openai_api(analysis_prompt, model="gpt-4-turbo")
             
             if first_analysis:
                 st.session_state.analysis_history.append(first_analysis)
@@ -856,7 +952,7 @@ if uploaded_file:
                             {banned_words}
                             """
                             
-                            new_analysis = call_openai_api(refine_prompt, model="gpt-4.1")
+                            new_analysis = call_openai_api(refine_prompt, model="gpt-4-turbo")
                             
                             if new_analysis:
                                 st.session_state.analysis_history.append(new_analysis)
