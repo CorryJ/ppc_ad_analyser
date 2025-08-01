@@ -286,16 +286,16 @@ def extract_pdf_text(uploaded_file) -> Optional[str]:
         return None
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
-def cached_openai_call(prompt_hash: str, prompt: str, model: str = "gpt-4-turbo") -> Optional[str]:
+def cached_openai_call(prompt_hash: str, prompt: str, model: str = "gpt-4o") -> Optional[str]:
     """Cached OpenAI API call to avoid repeated requests"""
     return call_openai_api_with_retry(prompt, model)
 
-def call_openai_api_with_retry(prompt: str, model: str = "gpt-4-turbo", max_retries: int = 3) -> Optional[str]:
+def call_openai_api_with_retry(prompt: str, model: str = "gpt-4o", max_retries: int = 3) -> Optional[str]:
     """Call OpenAI API with retry logic and exponential backoff"""
     for attempt in range(max_retries):
         try:
             response = client.chat.completions.create(
-                model=model,  # Changed from "gpt-4.1" to "gpt-4-turbo"
+                model=model,  # Changed from "gpt-4.1" to "gpt-4o"
                 messages=[
                     {"role": "system", "content": "You are a data extraction assistant specialized in parsing advertising reports."},
                     {"role": "user", "content": prompt}
@@ -334,7 +334,7 @@ def call_openai_api_with_retry(prompt: str, model: str = "gpt-4-turbo", max_retr
     
     return None
 
-def call_openai_api(prompt: str, model: str = "gpt-4-turbo") -> Optional[str]:
+def call_openai_api(prompt: str, model: str = "gpt-4o") -> Optional[str]:
     """Main OpenAI API call function with caching"""
     # Create hash for caching
     prompt_hash = hashlib.md5(f"{prompt}{model}".encode()).hexdigest()
@@ -723,7 +723,7 @@ if uploaded_file:
             extraction_prompt = get_safer_extraction_prompt(raw_text)
             
             with st.spinner("🤖 AI is analyzing your data..."):
-                structured_data = call_openai_api(extraction_prompt, model="gpt-4-turbo")
+                structured_data = call_openai_api(extraction_prompt, model="gpt-4o")
 
             if structured_data:
                 # Show AI response in debug mode
@@ -755,7 +755,7 @@ if uploaded_file:
                         [{{"Metric": "Clicks", "Value": "2025", "Change (%)": 11.3, "Period": "Month on Month"}}]
                         """
                         
-                        simple_response = call_openai_api(simple_prompt, model="gpt-4-turbo")
+                        simple_response = call_openai_api(simple_prompt, model="gpt-4o")
                         if simple_response:
                             df_simple = parse_structured_data(simple_response)
                             if df_simple is not None:
@@ -897,7 +897,7 @@ if uploaded_file:
             """
             
             with st.spinner("📝 Generating comprehensive analysis..."):
-                first_analysis = call_openai_api(analysis_prompt, model="gpt-4-turbo")
+                first_analysis = call_openai_api(analysis_prompt, model="gpt-4o")
             
             if first_analysis:
                 st.session_state.analysis_history.append(first_analysis)
@@ -952,7 +952,7 @@ if uploaded_file:
                             {banned_words}
                             """
                             
-                            new_analysis = call_openai_api(refine_prompt, model="gpt-4-turbo")
+                            new_analysis = call_openai_api(refine_prompt, model="gpt-4o")
                             
                             if new_analysis:
                                 st.session_state.analysis_history.append(new_analysis)
